@@ -1,3 +1,4 @@
--python 3.8 (set up to run as python3.8) NOTE: MUST BE AT LEAST 3.8 OTHERWISE pow(x,-1,x) WILL GIVE AN ERROR
--uuencode and uudecode (ship with Mac OS)
+-python 3.8 (set up to run as python3.8)
+NOTE: MUST BE AT LEAST 3.8 OTHERWISE pow(x,-1,x) WILL GIVE AN ERROR
+-uuencode and uudecode. This package is usually called sharutil
 

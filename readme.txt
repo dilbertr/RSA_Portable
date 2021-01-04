@@ -1,3 +1,8 @@
+-------------About--------------
+Created by dilbertr. Encodes files with
+uuencode then encrypts these with RSA
+in blocks of 32 characters.
+
 ------Installation Process------
 1. cd to the repository directory
 2. chmod +x install.sh
