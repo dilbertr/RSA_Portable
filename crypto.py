@@ -6,6 +6,7 @@ import math
 import random
 import binascii
 
+
 def rsa_private_key_known(p,q,e):
 	#G=Integers((p-1)*(q-1))
 	#return G(e^(-1))
@@ -29,8 +30,8 @@ def decode(n): #unicode to integer
 	raw=bytes.fromhex(hecks)
 	return raw.decode()
 def encrypt_file(source,destination,key):
-	m=codecs.open(source,"r",encoding="utf-8",errors="ignore") #message
-	c=open(destination,"w") #ciphertext
+	m=open(source,"rb") #message
+	c=open(destination,"wb") #ciphertext
 	block=''
 	encrypted_block=''
 	blocklength=32 #arbitrary, bigger blocklength = smaller file size
@@ -38,25 +39,28 @@ def encrypt_file(source,destination,key):
 	while True:
 		block=""
 		block = m.read(blocklength)
-		if block=="":
+		if block==b'':
 			break
 		encrypted_block=""
-		encrypted_block=hex(rsa_encrypt(key,encode(block))) #encode as hex
+		block=binascii.hexlify(block)
+		block=int(block,16)
+		encrypted_block=hex(rsa_encrypt(key,block)) #encode as hex
 		encrypted_block=encrypted_block[2:]
 		for i in range(7):
 			if len(encrypted_block)%256!=0:
 				encrypted_block="0"+encrypted_block
+		written_block=binascii.unhexlify(encrypted_block)
 		#written_block="\n"
 		#written_block=written_block+encrypted_block
-		c.write(encrypted_block)
+		c.write(written_block)
 	c.close()
 	m.close()
 def decrypt_file(source,destination,public,private):
-	c=codecs.open(source,"r",errors="ignore") #ciphertext
+	c=open(source,"rb") #ciphertext
 	chars=len(c.read())
 	charscompleted=0
-	c=codecs.open(source,"r",errors="ignore")
-	m=open(destination,"w") #message
+	c=open(source,"rb")
+	m=open(destination,"wb") #message
 	block=''
 	char='' #current character
 	decrypted_block=""
@@ -73,16 +77,22 @@ def decrypt_file(source,destination,public,private):
 		#	block = block + char
 		#if block != "": #encrypted file starts with \n, so the 1st block is empty
 		block=c.read(256)
-		charscompleted = charscompleted + 256
+		charscompleted = charscompleted + 128
 		percentage=math.floor(100*charscompleted/chars)
 		os.system("echo -n -e \'\\rProgress: "+str(percentage)+"%\\r'")
 		if block=="":
 			break
-		decrypted_block=decode(rsa_decrypt(public,private,int(block,16)))
+		block=binascii.hexlify(block)
+		print(block)
+		decrypted_block=str(hex(rsa_decrypt(public,private,int(block,16))))[2:]
+		if len(decrypted_block)%2 != 0:
+			decrypted_block="0"+str(decrypted_block)
+		decrypted_block=binascii.unhexlify(decrypted_block)
 		m.write(decrypted_block)
 
 	m.close()
 	c.close()
+
 def miller_rabin(n, k):
 
     # Implementation uses the Miller-Rabin Primality Test
@@ -120,3 +130,113 @@ def next_prime(n):
         if miller_rabin(i,40):
             return i
         i=i+1
+
+def keygen():
+	p=next_prime((math.floor(random.random()*(2**256)))*2**256+math.floor(random.random()*(2**256)))
+	q=next_prime((math.floor(random.random()*(2**256)))*2**256+math.floor(random.random()*(2**256)))
+	public=str(p*q)+",65537"
+	private=str(rsa_private_key_known(p,q,65537))
+	return [public,private]
+def encrypt_file_counter(source,destination,counter):
+	blocknum=0
+	counterblock=""
+	m=open(source,"rb") #message
+	c=open(destination,"wb") #ciphertext
+	block=''
+	encrypted_block=''
+	blocklength=32 #arbitrary, bigger blocklength = smaller file size
+	written_block="" #block written to ciphertext
+	lastblock=""
+	block_unmodified=""
+	print("Generating RSA key...")
+	keys=keygen()
+	public=keys[0]
+	c.write(public.encode()+b"\n")
+	public=public.split(',')
+	for i in [0,1]:
+		public[i]=int(public[i])
+	print("Starting encryption...")
+	while True:
+		block=""
+		block = m.read(blocklength)
+		block_unmodified=block
+		if block==b'':
+			c.write(str(len(lastblock)).encode())
+			break
+		encrypted_block=""
+		block=binascii.hexlify(block)
+		block=int(block,16)
+		counter_block=counter+blocknum
+		counter_block=rsa_encrypt(public,counter_block)%(2**256)
+		encrypted_block=hex(counter_block^block)[2:]
+		while True:
+			if len(encrypted_block)%64!=0:
+				encrypted_block="0"+encrypted_block
+			else:
+				break
+		written_block=binascii.unhexlify(encrypted_block)
+		#written_block="\n"
+		#written_block=written_block+encrypted_block
+		c.write(written_block)
+		blocknum=blocknum+1
+		lastblock=block_unmodified
+	c.close()
+	m.close()
+def decrypt_file_counter(source,destination,counter):
+	
+	blocknum = 0
+	done = False
+	counterblock = ""
+	m = open(source,"rb") #message
+	c = open(destination,"wb") #ciphertext
+
+	public=str(m.readlines(1)[0])[2:-3].split(',')
+	for i in [0,1]:
+		public[i]=int(public[i])
+	block = ''
+	encrypted_block = ''
+	blocklength = 32 #arbitrary, bigger blocklength = smaller file size
+	written_block = "" #block written to ciphertext
+	lastblock = ""
+	oneahead = m.read(blocklength)
+	twoahead = m.read(blocklength)
+	while True:
+		block = ""
+		block = oneahead
+		oneahead = twoahead
+		twoahead = m.read(blocklength)
+		if twoahead==b'':
+			done = True
+			oneahead = int(oneahead)
+		encrypted_block=""
+		block=binascii.hexlify(block)
+		block=int(block,16)
+		counter_block=counter+blocknum
+		counter_block=rsa_encrypt(public,counter_block)%(2**256)
+		encrypted_block=hex(counter_block^block)[2:]
+		if not done:
+			while True:
+				if len(encrypted_block)%64!=0:
+					encrypted_block="0"+encrypted_block
+				else:
+					break
+		else:
+			while True:
+				if len(encrypted_block)%oneahead!=0:
+					encrypted_block="0"+encrypted_block
+				else:
+					break
+		written_block=binascii.unhexlify(encrypted_block)
+		#written_block="\n"
+		#written_block=written_block+encrypted_block
+		c.write(written_block)
+		blocknum=blocknum+1
+		if done:
+			break
+	c.close()
+	m.close()
+
+
+
+
+
