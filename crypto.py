@@ -6,6 +6,7 @@ import math
 import random
 import binascii
 
+
 def rsa_private_key_known(p,q,e):
 	#G=Integers((p-1)*(q-1))
 	#return G(e^(-1))
